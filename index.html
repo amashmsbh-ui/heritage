@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HERITA — Living Cultural Heritage Preservation Platform</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Leaflet CSS & JS for Interactive Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
+  <style>
+    /* Styling refinements */
+    .tab-btn.active {
+      background-color: #d97706;
+      color: #ffffff;
+      font-weight: 600;
+    }
+    .badge-critical { background-color: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+    .badge-at_risk { background-color: #ffedd5; color: #c2410c; border: 1px solid #fdba74; }
+    .badge-vulnerable { background-color: #fef9c3; color: #a16207; border: 1px solid #fde047; }
+    .badge-stable { background-color: #dbeafe; color: #1d4ed8; border: 1px solid #93c5fd; }
+    .badge-thriving { background-color: #d1fae5; color: #047857; border: 1px solid #6ee7b7; }
+    #map { height: 380px; border-radius: 1rem; z-index: 10; }
+  </style>
+</head>
+<body class="bg-stone-50 text-stone-900 antialiased font-sans min-h-screen flex flex-col">
+
+  <!-- ==================== HEADER & TOP BAR ==================== -->
+  <header class="bg-white border-b border-stone-200 sticky top-0 z-50 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+      
+      <!-- Brand & Tagline -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-orange-500 flex items-center justify-center text-white font-bold text-xl shadow-md">
+          🏛️
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xl font-black tracking-tight text-amber-900">HERITA</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-200">SIH 2026</span>
+          </div>
+          <p class="text-xs text-stone-500">Discover • Experience • Preserve</p>
+        </div>
+      </div>
+
+      <!-- City & Geolocation Control (Non-blocking) -->
+      <div class="flex items-center gap-2 bg-stone-100 border border-stone-200 px-3 py-1.5 rounded-xl text-xs">
+        <span class="text-emerald-500 font-bold animate-pulse">●</span>
+        <span class="font-medium text-stone-600">Location:</span>
+        <select id="citySelect" onchange="changeCity(this.value)" class="bg-transparent text-stone-900 font-semibold outline-none cursor-pointer">
+          <option value="bhopal">Bhopal, MP</option>
+          <option value="varanasi">Varanasi, UP</option>
+          <option value="jaipur">Jaipur, RJ</option>
+        </select>
+        <span class="text-stone-300">|</span>
+        <button onclick="detectLocation()" class="text-amber-700 hover:text-amber-800 font-bold flex items-center gap-1">
+          📍 Detect
+        </button>
+      </div>
+
+      <!-- User Credentials / Session Display -->
+      <div class="flex items-center gap-3">
+        <div id="authGuestView" class="flex items-center gap-2">
+          <button onclick="openAuthModal('login')" class="px-3.5 py-1.5 text-xs font-semibold text-stone-700 hover:text-stone-900 bg-stone-100 hover:bg-stone-200 rounded-xl transition">
+            Sign In
+          </button>
+          <button onclick="openAuthModal('register')" class="px-3.5 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-sm transition">
+            Join Herita
+          </button>
+        </div>
+
+        <div id="authUserView" class="hidden flex items-center gap-3">
+          <!-- Streak & Points Pill -->
+          <div class="flex items-center gap-3 bg-amber-50 border border-amber-200 px-3 py-1 rounded-xl text-xs">
+            <span class="text-orange-600 font-bold flex items-center gap-1">🔥 <span id="headerStreak">7</span>d</span>
+            <span class="text-amber-800 font-bold flex items-center gap-1">🏺 <span id="headerPoints">1,420</span> XP</span>
+          </div>
+
+          <!-- User Pill & Role Badge -->
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-full bg-amber-200 text-amber-900 flex items-center justify-center font-bold text-xs" id="userAvatar">
+              AS
+            </div>
+            <div class="text-left hidden md:block">
+              <div class="text-xs font-bold leading-tight text-stone-800" id="userName">Aarav Sharma</div>
+              <div class="text-[10px] text-amber-700 font-semibold capitalize" id="userRole">User</div>
+            </div>
+            <button onclick="logout()" title="Logout" class="text-stone-400 hover:text-red-600 p-1 text-xs">
+              ✕
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Navigation Bar -->
+    <nav class="border-t border-stone-100 bg-white">
+      <div class="max-w-7xl mx-auto px-4 flex gap-1 overflow-x-auto py-1 text-xs">
+        <button onclick="switchTab('discover')" id="nav-discover" class="tab-btn active px-4 py-2 rounded-lg font-medium transition flex items-center gap-1.5 whitespace-nowrap">
+          <span>🧭</span> Discover & Radius
+        </button>
+        <button onclick="switchTab('experience')" id="nav-experience" class="tab-btn px-4 py-2 rounded-lg font-medium text-stone-600 hover:text-stone-900 transition flex items-center gap-1.5 whitespace-nowrap">
+          <span>🗺️</span> Plan a Trip
+        </button>
+        <button onclick="switchTab('learn')" id="nav-learn" class="tab-btn px-4 py-2 rounded-lg font-medium text-stone-600 hover:text-stone-900 transition flex items-center gap-1.5 whitespace-nowrap">
+          <span>📖</span> Learn & Play
+        </button>
+        <button onclick="switchTab('preserve')" id="nav-preserve" class="tab-btn px-4 py-2 rounded-lg font-medium text-stone-600 hover:text-stone-900 transition flex items-center gap-1.5 whitespace-nowrap">
+          <span>🚨</span> Preserve
+        </button>
+        <button onclick="switchTab('passport')" id="nav-passport" class="tab-btn px-4 py-2 rounded-lg font-medium text-stone-600 hover:text-stone-900 transition flex items-center gap-1.5 whitespace-nowrap">
+          <span>🛂</span> Passport
+        </button>
+        <button onclick="switchTab('docs')" id="nav-docs" class="tab-btn px-4 py-2 rounded-lg font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 transition flex items-center gap-1.5 whitespace-nowrap ml-auto">
+          <span>📥</span> Download Docs
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <!-- ==================== MAIN CONTENT CONTAINER ==================== -->
+  <main class="max-w-7xl mx-auto px-4 py-6 flex-1 w-full space-y-6">
+
+    <!-- TAB 1: DISCOVER & CULTURAL RADIUS -->
+    <section id="panel-discover" class="space-y-6">
+      <!-- Cultural Radius Controls -->
+      <div class="bg-white border border-stone-200 rounded-2xl p-5 shadow-sm space-y-4">
+        <div class="flex flex-col md:flex-row justify-between md:items-center gap-3">
+          <div>
+            <h2 class="text-lg font-bold text-stone-900 flex items-center gap-2">
+              <span>🧭</span> Cultural Radius: Discover What Lives Around You
+            </h2>
+            <p class="text-xs text-stone-500">Instead of static catalogs, explore living folk masters, rare oral epics, and historic streets within reach.</p>
+          </div>
+
+          <!-- Radius Buttons -->
+          <div class="inline-flex p-1 rounded-xl bg-stone-100 border border-stone-200 text-xs font-semibold">
+            <button onclick="setRadius(1)" id="btn-rad-1" class="px-3 py-1.5 rounded-lg text-stone-600 hover:text-stone-900 transition">1 km</button>
+            <button onclick="setRadius(5)" id="btn-rad-5" class="px-3 py-1.5 rounded-lg bg-amber-600 text-white font-bold transition">5 km</button>
+            <button onclick="setRadius(10)" id="btn-rad-10" class="px-3 py-1.5 rounded-lg text-stone-600 hover:text-stone-900 transition">10 km</button>
+            <button onclick="setRadius(25)" id="btn-rad-25" class="px-3 py-1.5 rounded-lg text-stone-600 hover:text-stone-900 transition">25 km</button>
+            <button onclick="setRadius('all')" id="btn-rad-all" class="px-3 py-1.5 rounded-lg text-stone-600 hover:text-stone-900 transition">Entire City</button>
+          </div>
+        </div>
+
+        <!-- Category Chips -->
+        <div class="flex flex-wrap gap-2 pt-2 border-t border-stone-100 text-xs">
+          <button onclick="setCategory('all')" class="cat-chip px-3 py-1.5 rounded-lg bg-stone-900 text-white font-semibold">All Categories</button>
+          <button onclick="setCategory('music')" class="cat-chip px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium">🎵 Folk Music</button>
+          <button onclick="setCategory('craft')" class="cat-chip px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium">🎨 Endangered Crafts</button>
+          <button onclick="setCategory('history')" class="cat-chip px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium">🏛️ History</button>
+          <button onclick="setCategory('literature')" class="cat-chip px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium">📚 Oral Lore</button>
+          <button onclick="setCategory('people')" class="cat-chip px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium">👥 Keepers of Heritage</button>
+          <button onclick="setCategory('game')" class="cat-chip px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium">🎮 Traditional Games</button>
+          <button onclick="setCategory('food')" class="cat-chip px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium">🍴 Food Heritage</button>
+        </div>
+      </div>
+
+      <!-- Live Geospatial Map View -->
+      <div class="bg-white border border-stone-200 rounded-2xl p-4 shadow-sm space-y-2">
+        <div class="flex justify-between items-center text-xs px-1">
+          <span class="font-bold text-stone-700 flex items-center gap-1.5">
+            <span>🗺️</span> Interactive Cultural Map (<span id="mapRadiusLabel">5 km Radius</span>)
+          </span>
+          <span class="text-stone-400">Click pins for heritage and practitioner details</span>
+        </div>
+        <div id="map"></div>
+      </div>
+
+      <!-- Heritage Cards Grid -->
+      <div class="space-y-3">
+        <div class="flex justify-between items-center text-xs px-1">
+          <h3 class="font-bold text-stone-800 text-sm">Discovered Heritage (<span id="resultsCount">0</span> Items)</h3>
+          <span class="text-stone-500">Ranked by distance and Cultural Survival Score</span>
+        </div>
+        <div id="heritageGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: EXPERIENCE (AI TRIP PLANNER) -->
+    <section id="panel-experience" class="space-y-6 hidden">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Input Form -->
+        <div class="bg-white border border-stone-200 rounded-2xl p-6 space-y-4 shadow-sm">
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-base font-bold text-stone-900">AI Cultural Trip Planner</h2>
+              <span class="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded">Smart Constraint</span>
+            </div>
+            <p class="text-xs text-stone-500 mt-0.5">Generate itineraries with budget bounds and deep cultural rationale.</p>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <div>
+              <label class="block font-medium text-stone-700 mb-1">Duration / Time Frame</label>
+              <select id="planDuration" class="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-stone-800">
+                <option value="6h">Half-Day (6 Hours)</option>
+                <option value="1d" selected>Full Day (1 Day Cultural Immersion)</option>
+                <option value="2d">Weekend Heritage (2 Days)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block font-medium text-stone-700 mb-1">Max Budget (₹ INR)</label>
+              <input id="planBudget" type="number" value="2500" class="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-stone-800 font-semibold" placeholder="2500">
+              <p class="text-[10px] text-stone-400 mt-1">Rule 3: AI strictly respects this budget boundary.</p>
+            </div>
+
+            <div>
+              <label class="block font-medium text-stone-700 mb-1">Transport / Experience Style</label>
+              <select id="planTransport" class="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-stone-800">
+                <option value="walking">🚶 Heritage Walking Route</option>
+                <option value="auto">🛺 Auto / E-Rickshaw Trail</option>
+                <option value="guided">🧑‍🤝‍🧑 With Verified Local Guide</option>
+              </select>
+            </div>
+
+            <button onclick="generatePlan()" class="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-1.5">
+              <span>✨</span> Generate Cultural Journey
+            </button>
+          </div>
+        </div>
+
+        <!-- Generated Itinerary View -->
+        <div class="lg:col-span-2 bg-white border border-stone-200 rounded-2xl p-6 shadow-sm space-y-4">
+          <div id="itineraryHeader" class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-3 border-b border-stone-100 gap-2">
+            <div>
+              <h3 class="font-bold text-base text-stone-900" id="itinTitle">The Forgotten Bhopal Route</h3>
+              <p class="text-xs text-stone-500" id="itinSub">Estimated: ₹1,800 – ₹2,200 • Walking & E-Rickshaw • 7.5 km</p>
+            </div>
+            <span class="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+              ✓ Budget Compliant
+            </span>
+          </div>
+
+          <div id="itineraryStops" class="space-y-4 text-xs">
+            <!-- Populated by JavaScript -->
+          </div>
+
+          <!-- In-Trip Experience Mode Simulation -->
+          <div class="p-4 bg-amber-50/70 border border-amber-200 rounded-xl flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div>
+              <div class="font-bold text-xs text-amber-900 flex items-center gap-1.5">
+                <span>🎧</span> Experience Mode (In-Trip Audio Guide)
+              </div>
+              <p class="text-[11px] text-amber-700 mt-0.5">Streams geofenced oral stories when you reach historic locations.</p>
+            </div>
+            <button onclick="startAudioGuide()" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-sm transition whitespace-nowrap">
+              ▶ Launch Audio Stream
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: LEARN & PLAY -->
+    <section id="panel-learn" class="space-y-6 hidden">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Daily Cultural Challenge -->
+        <div class="bg-white border border-stone-200 rounded-2xl p-6 shadow-sm space-y-4">
+          <div class="flex justify-between items-start">
+            <div>
+              <span class="text-[11px] font-bold text-amber-700 uppercase tracking-wider">Daily Cultural Challenge</span>
+              <h3 class="text-sm font-bold text-stone-900 mt-1" id="quizQuestion">Loading question...</h3>
+            </div>
+            <span class="text-xs px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-bold">+25 XP</span>
+          </div>
+
+          <div id="quizOptions" class="space-y-2 text-xs">
+            <!-- Populated by JavaScript -->
+          </div>
+
+          <div id="quizFeedback" class="hidden text-xs font-semibold p-3 rounded-xl border"></div>
+        </div>
+
+        <!-- Cultural Survival Score Breakdown -->
+        <div class="bg-white border border-stone-200 rounded-2xl p-6 shadow-sm space-y-4">
+          <div class="flex justify-between items-center">
+            <div>
+              <span class="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Algorithmic Formulation</span>
+              <h3 class="text-sm font-bold text-stone-900 mt-0.5">Cultural Survival Score Breakdown</h3>
+            </div>
+            <span class="text-xs font-bold px-2.5 py-1 rounded-full badge-at_risk">Score: 32/100 (At Risk)</span>
+          </div>
+
+          <p class="text-xs text-stone-600">6 measurable indicators tracking the vitality of <strong>Bhopali Zardozi Embroidery</strong>:</p>
+
+          <div class="space-y-2.5 text-xs pt-1">
+            <div>
+              <div class="flex justify-between mb-1">
+                <span class="text-stone-700 font-medium">1. Active Master Practitioners (14 left)</span>
+                <span class="font-bold text-orange-600">22%</span>
+              </div>
+              <div class="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
+                <div class="bg-orange-500 h-full rounded-full" style="width: 22%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between mb-1">
+                <span class="text-stone-700 font-medium">2. Age Demographics (Median Age 61)</span>
+                <span class="font-bold text-red-600">15%</span>
+              </div>
+              <div class="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
+                <div class="bg-red-500 h-full rounded-full" style="width: 15%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between mb-1">
+                <span class="text-stone-700 font-medium">3. Youth Transmission Rate (3 apprentices)</span>
+                <span class="font-bold text-red-600">18%</span>
+              </div>
+              <div class="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
+                <div class="bg-red-500 h-full rounded-full" style="width: 18%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between mb-1">
+                <span class="text-stone-700 font-medium">4. Performance / Order Frequency</span>
+                <span class="font-bold text-amber-600">35%</span>
+              </div>
+              <div class="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
+                <div class="bg-amber-500 h-full rounded-full" style="width: 35%"></div>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex justify-between mb-1">
+                <span class="text-stone-700 font-medium">5. Audiovisual Documentation Coverage</span>
+                <span class="font-bold text-emerald-600">65%</span>
+              </div>
+              <div class="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
+                <div class="bg-emerald-500 h-full rounded-full" style="width: 65%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-3 bg-stone-50 border border-stone-200 rounded-xl text-[11px] text-stone-500">
+            ℹ️ <em>"Rule 6: AI does not declare a tradition 'dying' arbitrarily. The score is computed from verified community metrics and documentation."</em>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: PRESERVE & AI VERIFICATION -->
+    <section id="panel-preserve" class="space-y-6 hidden">
+      <div class="bg-white border border-stone-200 rounded-2xl p-6 shadow-sm space-y-6">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-base font-bold text-stone-900">🚨 Heritage at Risk Submission & AI Verification</h2>
+              <span class="text-[10px] bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded">Preservation Portal</span>
+            </div>
+            <p class="text-xs text-stone-500 mt-0.5">Submit an endangered oral tradition, craft, or song to our structured verification pipeline.</p>
+          </div>
+          <span class="text-xs px-3 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-full font-bold">
+            +50 XP Per Verified Upload
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Submission Form -->
+          <div class="space-y-3 text-xs">
+            <div>
+              <label class="block font-medium text-stone-700 mb-1">Tradition / Oral Story Name</label>
+              <input id="presName" type="text" value="Bagheli Gondi Oral Epic (Narmada Song)" class="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-stone-800 font-medium">
+            </div>
+
+            <div>
+              <label class="block font-medium text-stone-700 mb-1">Geographic Location / Community</label>
+              <input id="presLocation" type="text" value="Bhopal periphery tribal settlements" class="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-stone-800 font-medium">
+            </div>
+
+            <div>
+              <label class="block font-medium text-stone-700 mb-1">Estimated Living Practitioners</label>
+              <input id="presCount" type="number" value="4" class="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-stone-800 font-medium">
+            </div>
+
+            <div>
+              <label class="block font-medium text-stone-700 mb-1">Description / Oral Context</label>
+              <textarea id="presDesc" rows="3" class="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-stone-800 font-medium">Sung exclusively by elder women during winter sowing recounting how river Narmada carved her marble gorge.</textarea>
+            </div>
+
+            <button onclick="submitPreservation()" class="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md transition">
+              🚀 Submit to AI Verification Pipeline
+            </button>
+          </div>
+
+          <!-- AI Pipeline Status & Moderator Queue -->
+          <div class="bg-stone-50 border border-stone-200 rounded-xl p-4 space-y-3">
+            <h4 class="font-bold text-xs text-stone-800 flex items-center justify-between">
+              <span>⚙️ AI Verification Pipeline & Scholar Queue</span>
+              <span class="text-[10px] text-amber-700 font-semibold" id="moderatorRoleNotice">Moderator Role View</span>
+            </h4>
+
+            <div id="submissionsList" class="space-y-3 text-xs">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: HERITAGE PASSPORT -->
+    <section id="panel-passport" class="space-y-6 hidden">
+      <div class="bg-white border border-stone-200 rounded-2xl p-6 shadow-sm space-y-6">
+        <div class="flex flex-col md:flex-row justify-between md:items-center gap-4 border-b border-stone-100 pb-5">
+          <div class="flex items-center gap-4">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-600 to-red-600 flex items-center justify-center text-white text-3xl font-bold shadow-md">
+              🛂
+            </div>
+            <div>
+              <h2 class="text-lg font-bold text-stone-900" id="passportName">Aarav Sharma's Cultural Passport</h2>
+              <p class="text-xs text-stone-500" id="passportRank">Rank #13 Regional Heritage Guardian • Active Explorer</p>
+            </div>
+          </div>
+
+          <div class="text-left md:text-right">
+            <span class="text-xs font-bold text-amber-800 uppercase tracking-wider">Cultural Points Balance</span>
+            <div class="text-2xl font-black text-amber-900" id="passportXP">1,420 XP</div>
+          </div>
+        </div>
+
+        <!-- Metric Counters -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+          <div class="bg-stone-50 border border-stone-200 p-4 rounded-xl">
+            <div class="text-2xl mb-1">🏛️</div>
+            <div class="text-lg font-black text-stone-900" id="passportExplored">27</div>
+            <div class="text-[11px] text-stone-500">Places Explored</div>
+          </div>
+          <div class="bg-stone-50 border border-stone-200 p-4 rounded-xl">
+            <div class="text-2xl mb-1">🎵</div>
+            <div class="text-lg font-black text-stone-900" id="passportMastered">4</div>
+            <div class="text-[11px] text-stone-500">Traditions Mastered</div>
+          </div>
+          <div class="bg-stone-50 border border-stone-200 p-4 rounded-xl">
+            <div class="text-2xl mb-1">🤝</div>
+            <div class="text-lg font-black text-stone-900" id="passportContrib">12</div>
+            <div class="text-[11px] text-stone-500">Verified Preservations</div>
+          </div>
+          <div class="bg-stone-50 border border-stone-200 p-4 rounded-xl">
+            <div class="text-2xl mb-1">🔥</div>
+            <div class="text-lg font-black text-stone-900" id="passportStreak">7 Days</div>
+            <div class="text-[11px] text-stone-500">Active Streak</div>
+          </div>
+        </div>
+
+        <!-- Badges Ledger -->
+        <div class="space-y-2">
+          <h4 class="text-xs font-bold text-stone-500 uppercase tracking-wider">Earned Heritage Badges</h4>
+          <div class="flex flex-wrap gap-2 text-xs" id="passportBadges">
+            <!-- Populated by JavaScript -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 6: DOWNLOAD DOCUMENTATION -->
+    <section id="panel-docs" class="space-y-6 hidden">
+      <div class="bg-white border border-stone-200 rounded-2xl p-6 shadow-sm space-y-6">
+        <div class="flex flex-col md:flex-row justify-between md:items-center gap-4 border-b border-stone-100 pb-5">
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-lg font-bold text-stone-900">📥 Complete Document Download Center</h2>
+              <span class="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded">SIH 2026 Ready</span>
+            </div>
+            <p class="text-xs text-stone-500 mt-1">Download complete technical specifications, architectural blueprints, pitch decks, and SQL schemas.</p>
+          </div>
+
+          <!-- Master ZIP Download CTA -->
+          <a href="/api/docs/download-all" class="px-5 py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2">
+            <span>📦</span> Download All Docs (.ZIP Package)
+          </a>
+        </div>
+
+        <!-- Document Cards Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="docsList">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== AUTHENTICATION MODAL ==================== -->
+  <div id="authModal" class="fixed inset-0 bg-stone-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white border border-stone-200 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="text-base font-bold text-stone-900" id="authModalTitle">Sign In to Herita</h3>
+        <button onclick="closeAuthModal()" class="text-stone-400 hover:text-stone-700 text-sm">✕</button>
+      </div>
+
+      <!-- Quick Demo Account Fillers -->
+      <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+        <div class="text-[11px] font-bold text-amber-900">⚡ Quick Demo One-Click Fill:</div>
+        <div class="flex flex-wrap gap-1.5 text-[11px]">
+          <button onclick="fillDemo('user')" class="px-2.5 py-1 bg-white border border-amber-300 hover:bg-amber-100 rounded-lg text-amber-900 font-semibold transition">
+            👤 User (Aarav)
+          </button>
+          <button onclick="fillDemo('moderator')" class="px-2.5 py-1 bg-white border border-amber-300 hover:bg-amber-100 rounded-lg text-amber-900 font-semibold transition">
+            🛡️ Regional Mod (Dr. Verma)
+          </button>
+          <button onclick="fillDemo('admin')" class="px-2.5 py-1 bg-white border border-amber-300 hover:bg-amber-100 rounded-lg text-amber-900 font-semibold transition">
+            👑 Admin
+          </button>
+        </div>
+      </div>
+
+      <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-3 text-xs">
+        <div id="regNameField" class="hidden">
+          <label class="block font-medium text-stone-700 mb-1">Full Name</label>
+          <input id="authFullName" type="text" class="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-stone-800" placeholder="e.g. Aarav Sharma">
+        </div>
+
+        <div>
+          <label class="block font-medium text-stone-700 mb-1">Email Address</label>
+          <input id="authEmail" type="email" required class="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-stone-800" placeholder="aarav@herita.org">
+        </div>
+
+        <div>
+          <label class="block font-medium text-stone-700 mb-1">Password</label>
+          <input id="authPassword" type="password" required class="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-stone-800" placeholder="••••••••">
+        </div>
+
+        <div id="regRoleField" class="hidden">
+          <label class="block font-medium text-stone-700 mb-1">Account Role</label>
+          <select id="authRole" class="w-full bg-stone-50 border border-stone-200 rounded-xl p-2.5 text-stone-800">
+            <option value="user">Regular Explorer / Contributor</option>
+            <option value="moderator">Regional Cultural Moderator</option>
+          </select>
+        </div>
+
+        <div id="authError" class="hidden text-xs text-red-600 bg-red-50 p-2.5 rounded-xl border border-red-200"></div>
+
+        <button type="submit" id="authSubmitBtn" class="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl shadow-md transition">
+          Sign In
+        </button>
+
+        <div class="text-center pt-1 text-[11px] text-stone-500">
+          <span id="authTogglePrompt">Don't have an account?</span>
+          <button type="button" onclick="toggleAuthMode()" class="text-amber-700 font-bold hover:underline ml-1" id="authToggleBtn">
+            Register now
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-stone-200 py-4 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center text-xs text-stone-500 gap-2">
+      <div>© 2026 HERITA Cultural Heritage Platform • Smart India Hackathon Prototype</div>
+      <div class="flex gap-4">
+        <span>Bhopal Cultural Radius: Active</span>
+        <span>AI Verification Engine: Online</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Main JavaScript Application Logic -->
+  <script src="/app.js"></script>
+</body>
+</html>
