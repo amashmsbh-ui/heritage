@@ -3,14 +3,15 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const archiver = require('archiver');
-const { readDb, writeDb, hashPassword, verifyPassword } = require('./data/db');
+const { readDb, writeDb, hashPassword, verifyPassword } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname)));
+
 
 // Simple Auth Middleware / Token simulator
 function getAuthUser(req) {
@@ -360,7 +361,7 @@ app.get('/api/docs/download-all', (req, res) => {
 
 // Fallback to client
 app.use((req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 // Start Server with fallback port scanning
