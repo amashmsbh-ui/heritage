@@ -293,6 +293,28 @@
   },
   "submissions": [
     {
+      "id": "sub-1790708156473",
+      "submittedBy": "Aarav Sharma",
+      "traditionName": "Narmada River Songs",
+      "location": "Bhopal Ghats",
+      "practitionerCount": 3,
+      "description": "Monsoon water worship chants",
+      "status": "approved",
+      "aiExtraction": {
+        "dialect": "Central Indic Folk Sub-dialect",
+        "era": "Late Medieval Oral Transmission",
+        "metricEstimate": 41
+      },
+      "aiDuplicateCheck": {
+        "similarity": "0.19",
+        "isUnique": true,
+        "archiveMatches": "No collision in IGNCA or National Folklore Archives"
+      },
+      "createdAt": "2026-09-29T18:55:56.473Z",
+      "verifiedBy": "Dr. Alok Verma (Regional Scholar)",
+      "citationNotes": "Verified through MP Tribal Research records"
+    },
+    {
       "id": "sub-101",
       "submittedBy": "Aarav Sharma",
       "traditionName": "Bagheli Gondi Oral Epic (Narmada Myth)",

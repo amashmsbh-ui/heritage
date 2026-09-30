@@ -234,9 +234,17 @@ const initialData = {
   ]
 };
 
+let memoryDb = null;
+
 function readDb() {
+  if (memoryDb) return memoryDb;
   if (!fs.existsSync(DB_FILE)) {
-    fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2));
+    try {
+      fs.writeFileSync(DB_FILE, JSON.stringify(initialData, null, 2));
+    } catch (e) {
+      memoryDb = JSON.parse(JSON.stringify(initialData));
+      return memoryDb;
+    }
     return initialData;
   }
   try {
@@ -248,7 +256,13 @@ function readDb() {
 }
 
 function writeDb(data) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+  memoryDb = data;
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+  } catch (e) {
+    // Graceful fallback for read-only serverless hosts like Vercel/AWS Lambda
+    console.warn("Storage warning: Serverless read-only filesystem. Preserved in memory.");
+  }
 }
 
 module.exports = {

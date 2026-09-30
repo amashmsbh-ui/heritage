@@ -345,7 +345,9 @@ app.get('/api/docs/download/:filename', (req, res) => {
 
 app.get('/api/docs/download-all', (req, res) => {
   res.attachment('HERITA_COMPLETE_DOCUMENTATION_BUNDLE_SIH2026.zip');
-  const archive = archiver('zip', { zlib: { level: 9 } });
+  const archive = typeof archiver === 'function'
+    ? archiver('zip', { zlib: { level: 9 } })
+    : new archiver.ZipArchive({ zlib: { level: 9 } });
 
   archive.on('error', err => {
     res.status(500).send({ error: err.message });
@@ -379,4 +381,8 @@ function startServer(port) {
   });
 }
 
-startServer(PORT);
+if (require.main === module) {
+  startServer(PORT);
+}
+
+module.exports = app;
